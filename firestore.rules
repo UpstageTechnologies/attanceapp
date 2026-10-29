@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwnerOfRecord(staffUid) {
+      return isAuthenticated() && request.auth.uid == staffUid;
+    }
+
+    function isHospitalAdmin(hospitalId) {
+      return isAuthenticated() && (
+        request.auth.token.role == 'Admin' ||
+        request.auth.token.role == 'Owner'
+      );
+    }
+
+    // Top-level direct staff lookup document: hospital_staff/{uid}
+    match /hospital_staff/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || request.auth.token.role in ['Admin', 'Owner']);
+      allow write: if isAuthenticated() && request.auth.token.role in ['Admin', 'Owner'];
+
+      // User's private attendance subcollection
+      match /attendance/{recordId} {
+        allow read: if isAuthenticated() && (request.auth.uid == uid || request.auth.token.role in ['Admin', 'Owner']);
+        allow create: if isAuthenticated() && request.auth.uid == uid && request.resource.data.staffUid == request.auth.uid;
+        allow update, delete: if isAuthenticated() && request.auth.token.role in ['Admin', 'Owner'];
+      }
+    }
+
+    // Hospital-scoped records: hospitals/{hospitalId}
+    match /hospitals/{hospitalId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.token.role in ['Admin', 'Owner'];
+
+      // Staff directory inside hospital
+      match /staff/{uid} {
+        allow read: if isAuthenticated() && (request.auth.uid == uid || request.auth.token.role in ['Admin', 'Owner']);
+        allow write: if isAuthenticated() && request.auth.token.role in ['Admin', 'Owner'];
+      }
+
+      // Hospital attendance logs
+      match /attendance/{attendanceId} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == resource.data.staffUid ||
+          request.auth.token.role in ['Admin', 'Owner']
+        );
+        allow create: if isAuthenticated() && (
+          request.resource.data.staffUid == request.auth.uid &&
+          request.resource.data.hospitalId == hospitalId
+        );
+        allow update, delete: if isAuthenticated() && request.auth.token.role in ['Admin', 'Owner'];
+      }
+    }
+
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

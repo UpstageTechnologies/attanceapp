@@ -1,0 +1,14 @@
+node_modules/
+
+# React Native / Metro
+.metro-health-check*
+.jest/
+
+# Android build output and machine-specific configuration
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+android/app/debug.keystore
